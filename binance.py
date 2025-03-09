@@ -19,16 +19,36 @@ class BinanceWrapper:
 
     @staticmethod
     def get_symbols() -> Optional[list[str]]:
-        json_response = BinanceWrapper._request_to_binance(path="/exchangeInfo")
-        return [symbol["symbol"] for symbol in json_response.data.get("symbols", [])] if json_response else None
+        data = BinanceWrapper.exchange_info()
+        return [symbol["symbol"] for symbol in data.get("symbols", [])] if data else None
 
     @staticmethod
-    def fetch_price(symbol: str) -> Optional[float]:
+    def get_top_24h_pairs(base_currency: str = None, length: int = 50) -> list[str]:
+        json_response = BinanceWrapper._request_to_binance(path="/ticker/24hr")
+
+        pairs = [pair for pair in json_response.data if base_currency is None or pair["symbol"].endswith(base_currency)]
+
+        pairs = sorted(pairs, key=lambda x: float(x["quoteVolume"]), reverse=True)
+
+        if length:
+            pairs = pairs[:length]
+
+        return [pair["symbol"] for pair in pairs]
+
+
+    @staticmethod
+    def fetch_price(symbol: str | list[str]) -> Optional[float]:
         json_response = BinanceWrapper._request_to_binance(path="/ticker/price", params={"symbol": symbol})
         if json_response is None or json_response.data.get("price", None) is None:
             return None
         return float(json_response.data.get("price"))
 
+
+    @staticmethod
+    def exchange_info() -> Optional[dict]:
+        path = "/exchangeInfo"
+        json_response = BinanceWrapper._request_to_binance(path=path)
+        return json_response.data if json_response else None
 
     @staticmethod
     def _build_url(path: str) -> str:
@@ -38,7 +58,6 @@ class BinanceWrapper:
             path = "/" + path
 
         return BinanceWrapper.BASE_URL + path
-
 
     @staticmethod
     def _request_to_binance(path: str, method: str = "get", *args, **kwargs) -> Optional[JsonResponse]:
@@ -50,5 +69,14 @@ class BinanceWrapper:
         except Exception as e:
             logger.error(e, exc_info=True)
             return None
+
+
+if __name__ == '__main__':
+    res = BinanceWrapper.get_top_24h_pairs(base_currency="USDT", length=50)
+    import json
+    with open("static/symbols.json", "w", encoding="utf-8") as f:
+        json.dump(res, f)
+
+
 
 
