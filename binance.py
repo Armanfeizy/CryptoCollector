@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Optional
 
@@ -37,11 +38,24 @@ class BinanceWrapper:
 
 
     @staticmethod
-    def fetch_price(symbol: str | list[str]) -> Optional[float]:
-        json_response = BinanceWrapper._request_to_binance(path="/ticker/price", params={"symbol": symbol})
-        if json_response is None or json_response.data.get("price", None) is None:
+    def fetch_price(symbol: str | list[str]) -> Optional[dict[str, float]]:
+        is_list = isinstance(symbol, list)
+
+        if is_list:
+            params = {"symbols": json.dumps(symbol, separators=(",", ":"))}
+        else:
+            params = {"symbol": symbol}
+
+        json_response = BinanceWrapper._request_to_binance(path="/ticker/price", params=params)
+        if json_response is None:
             return None
-        return float(json_response.data.get("price"))
+
+        if is_list:
+            price_data = json_response.data
+        else:
+            price_data = [json_response.data]
+
+        return {p_data.get("symbol"): float(p_data.get("price")) for p_data in price_data}
 
 
     @staticmethod
@@ -69,13 +83,6 @@ class BinanceWrapper:
         except Exception as e:
             logger.error(e, exc_info=True)
             return None
-
-
-if __name__ == '__main__':
-    res = BinanceWrapper.get_top_24h_pairs(base_currency="USDT", length=50)
-    import json
-    with open("static/symbols.json", "w", encoding="utf-8") as f:
-        json.dump(res, f)
 
 
 
